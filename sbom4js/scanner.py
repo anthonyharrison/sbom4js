@@ -6,7 +6,7 @@ import os
 import re
 import unicodedata
 
-from lib4package.package_metadata import Metadata
+from lib4package.metadata import Metadata
 from lib4sbom.data.document import SBOMDocument
 from lib4sbom.data.package import SBOMPackage
 from lib4sbom.data.relationship import SBOMRelationship
