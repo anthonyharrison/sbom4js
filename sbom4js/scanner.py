@@ -198,18 +198,19 @@ class JavascriptScanner:
             homepage = self.package_metadata.get_homepage()
             download_location = self.package_metadata.get_downloadlocation()
             self.javascript_package.set_filesanalysis(False)
-            if len(originator.split()) > 3:
-                self.javascript_package.set_supplier(
-                    "Organization", self._format_supplier(originator)
-                )
-            elif len(originator) > 1:
-                if self.debug:
-                    print(f"{originator} => {self._format_supplier(originator)}")
-                self.javascript_package.set_supplier(
-                    "Person", self._format_supplier(originator)
-                )
-            else:
-                self.javascript_package.set_supplier("UNKNOWN", "NOASSERTION")
+            # Assume supplier not known
+            self.javascript_package.set_supplier("UNKNOWN", "NOASSERTION")
+            if originator is not None:
+                if len(originator.split()) > 3:
+                    self.javascript_package.set_supplier(
+                        "Organization", self._format_supplier(originator)
+                    )
+                elif len(originator) > 1:
+                    if self.debug:
+                        print(f"{originator} => {self._format_supplier(originator)}")
+                    self.javascript_package.set_supplier(
+                        "Person", self._format_supplier(originator)
+                    )
             if package_licence is not None:
                 license = self.license.find_license(package_licence)
                 if self.debug:
