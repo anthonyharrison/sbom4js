@@ -137,7 +137,7 @@ def main(argv=None):
         sbom_type=args["sbom"], format=bom_format, application=app_name, version=VERSION
     )
     sbom_gen.generate(
-        project_name=sbom_scan.get_application_name(),
+        project_name=f"JS-{sbom_scan.get_application_name()}",
         sbom_data=javascript_sbom.get_sbom(),
         filename=args["output_file"],
     )
