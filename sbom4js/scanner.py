@@ -185,7 +185,7 @@ class JavascriptScanner:
             self.javascript_package.set_version(version)
             self.javascript_package.set_property("language", "Javascript")
             self.javascript_package.set_type(package_type)
-
+            self.javascript_package.set_evidence(self.lock_file)
             # Enrich package data
             self.package_metadata.get_package(name)
             if self.debug:
