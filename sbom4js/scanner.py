@@ -191,7 +191,7 @@ class JavascriptScanner:
             if self.debug:
                 self.package_metadata.print_data()
             # Checksum may be in file (SHA512)
-            checksum = self.package_metadata.get_checksum(version=version)
+            checksum, checksum_algorithm = self.package_metadata.get_checksum(version=version)
             originator = self.package_metadata.get_originator()
             description = self.package_metadata.get_description()
             package_licence = self.package_metadata.get_license()
@@ -239,7 +239,7 @@ class JavascriptScanner:
                 self.javascript_package.set_licenseconcluded(self.DEFAULT_LICENCE)
                 self.javascript_package.set_licensedeclared(self.DEFAULT_LICENCE)
             if checksum is not None:
-                self.javascript_package.set_checksum("SHA1", checksum)
+                self.javascript_package.set_checksum(checksum_algorithm, checksum)
             if homepage is not None:
                 self.javascript_package.set_homepage(homepage)
             if download_location is not None:
