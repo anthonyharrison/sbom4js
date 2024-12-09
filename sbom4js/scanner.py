@@ -187,7 +187,10 @@ class JavascriptScanner:
             self.javascript_package.set_type(package_type)
             self.javascript_package.set_evidence(self.lock_file)
             # Enrich package data
-            self.package_metadata.get_package(name)
+            self.package_metadata.get_package(name, version=version)
+            self.javascript_package.set_value(
+                "release_date", self.package_metadata.get_latest_release_time()
+            )
             if self.debug:
                 self.package_metadata.print_data()
             # Checksum may be in file (SHA512)
@@ -249,7 +252,8 @@ class JavascriptScanner:
             self.javascript_package.set_externalreference(
                 "PACKAGE-MANAGER", "purl", f"pkg:npm/{name}@{version}"
             )
-
+            # Copyright
+            self.javascript_package.set_copyrighttext("NOASSERTION")
             self.javascript_packages[(name, version)] = (
                 self.javascript_package.get_package()
             )
