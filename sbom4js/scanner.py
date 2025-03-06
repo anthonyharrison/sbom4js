@@ -269,6 +269,14 @@ class JavascriptScanner:
                     self.javascript_package.set_supplier(
                         "Person", self._format_supplier(originator)
                     )
+                component_supplier = self._format_supplier(originator, include_email=False)
+                if version is not None:
+                    cpe_version = version.replace(":", "\\:")
+                else:
+                    cpe_version = ""
+                self.javascript_package.set_cpe(
+                    f"cpe:2.3:a:{component_supplier.replace(' ', '_').lower()}:{name}:{cpe_version}:*:*:*:*:*:*:*"
+                )
             if package_licence is not None:
                 license = self.license.find_license(package_licence)
                 if self.debug:
