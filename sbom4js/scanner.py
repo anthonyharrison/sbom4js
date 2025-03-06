@@ -42,6 +42,7 @@ class JavascriptScanner:
         self.sbom_document.set_value("lifecycle", "build")
         self.sbom_document.set_metadata_type("application")
         self.application_name = None
+        self.dependency_list = []
 
     def set_dependency_file(self, dependency_directory):
         lock_file = self.LOCK_FILE
@@ -54,6 +55,10 @@ class JavascriptScanner:
             with open(os.path.abspath(self.dependency_file), "r") as file_handle:
                 self.module_data = json.load(file_handle)
             self.lock_file = self.dependency_file
+            if self.debug:
+                print (json.dumps(self.module_data, indent=2))
+        elif self.debug:
+            print(f"No {self.dependency_file} not found in {dependency_directory}")
 
     def _format_supplier(self, supplier_info, include_email=True):
         # See https://stackoverflow.com/questions/1207457/convert-a-unicode-string-to-a-string-in-python-containing-extra-symbols
@@ -84,10 +89,15 @@ class JavascriptScanner:
         return re.sub(" +", " ", supplier.strip())
 
     def _dependencies(self, module, parent):
+        if self.debug:
+            print(f"Process dependencies for {parent}: {module}")
         for entry in module:
             # To handle @actions/<product>: lines, extract product name from line
-            # product = entry.split("/")[1] if "/" in entry else entry
-            product = entry
+            product = entry.split("/")[1] if "/" in entry else entry
+            #product = entry
+            # Ignore product if not named
+            if len(product) == 0:
+                continue
             try:
                 version = module[entry]["version"]
             except Exception:
@@ -97,10 +107,18 @@ class JavascriptScanner:
                 self.packages.append([product, version])
                 self.add_entry(parent, product, version)
             else:
-                print(f"Version not found for {product}")
+                if self.debug:
+                    print(f"Version not found for {product}")
+                # Add relationship once all modules defined
+                self.dependency_list.append([parent, product])
         for entry in module:
-            # product = entry.split("/")[1] if "/" in entry else entry
-            product = entry
+            product = entry.split("/")[1] if "/" in entry else entry
+            #product = entry
+            if self.debug:
+                print (f"Process {product}")
+            # Ignore product if not named
+            if len(product) == 0:
+                continue
             for x in module[entry]:
                 if "dependencies" in x:
                     self._dependencies(module[entry]["dependencies"], product)
@@ -109,6 +127,8 @@ class JavascriptScanner:
                         dep_version = self.VERSION_UNKNOWN
                         # dep_package = dep.split("/")[1] if "/" in dep else dep
                         dep_package = dep
+                        if self.debug:
+                            print (f"Search for {dep_package}")
                         package = self.get_package(dep_package)
                         if package is None:
                             if self.ignore_missing_dependencies:
@@ -139,7 +159,11 @@ class JavascriptScanner:
         if len(self.module_data) > 0:
             # Module name
             application = self.module_data["name"]
-            version = self.module_data["version"]
+            if "version" in self.module_data:
+                version = self.module_data["version"]
+            else:
+                print(f"Package {application} is missing version data")
+                version = "0.1"
             # self.packages.append([application, version])
             # self.sbom_document.set_name(application)
             self.application_name = application
@@ -149,7 +173,21 @@ class JavascriptScanner:
             )
             self.module_valid = True
             # Process all packages
-            self._dependencies(self.module_data["dependencies"], application)
+            if "dependencies" in self.module_data:
+                self._dependencies(self.module_data["dependencies"], application)
+            if "packages" in self.module_data:
+                self._dependencies(self.module_data["packages"], application)
+            # if "devDependencies" in self.module_data:
+            #     self._dependencies(self.module_data["devDependencies"], application)
+            # if "peerDependencies" in self.module_data:
+            #     self._dependencies(self.module_data["peerDependencies"], application)
+            # if "optionalDependencies" in self.module_data:
+            #     self._dependencies(self.module_data["optionalDependencies"], application)
+            # Add dependencies
+            for entry in self.dependency_list:
+                parent = entry[0]
+                name = entry[1]
+                self._add_relationship(parent, name)
         elif self.debug:
             print(f"[ERROR] File {self.dependency_file} not found")
 
@@ -164,6 +202,23 @@ class JavascriptScanner:
             elif name == package[1] and version == package[2]:
                 return package
         return None
+
+    def _add_relationship(self, parent, name):
+        self.javascript_relationship.initialise()
+        if parent != self.DEFAULT_PARENT:
+            if self.debug:
+                print(f"Add relationship {parent} DEPENDS ON {name}")
+
+            self.javascript_relationship.set_relationship(parent, "DEPENDS_ON", name)
+        else:
+            if self.debug:
+                print(f"Add relationship {parent} DESCRIBES {name}")
+            self.javascript_relationship.set_relationship(
+                self.application_name, "DESCRIBES", name
+            )
+        self.javascript_relationships.append(
+            self.javascript_relationship.get_relationship()
+        )
 
     def add_entry(self, parent, name, version, package_type="LIBRARY"):
         if self.debug:
@@ -188,9 +243,9 @@ class JavascriptScanner:
             self.javascript_package.set_evidence(self.lock_file)
             # Enrich package data
             self.package_metadata.get_package(name, version=version)
-            self.javascript_package.set_value(
-                "release_date", self.package_metadata.get_latest_release_time()
-            )
+            release_date = self.package_metadata.get_latest_release_time()
+            if release_date is not None:
+                self.javascript_package.set_value("release_date", release_date)
             if self.debug:
                 self.package_metadata.print_data()
             # Checksum may be in file (SHA512)
@@ -249,33 +304,17 @@ class JavascriptScanner:
                 self.javascript_package.set_downloadlocation(download_location)
             if description is not None:
                 self.javascript_package.set_summary(description)
-            self.javascript_package.set_externalreference(
-                "PACKAGE-MANAGER", "purl", f"pkg:npm/{name}@{version}"
-            )
+            if package_type == "LIBRARY":
+                self.javascript_package.set_externalreference(
+                    "PACKAGE-MANAGER", "purl", f"pkg:npm/{name}@{version}"
+                )
             # Copyright
             self.javascript_package.set_copyrighttext("NOASSERTION")
             self.javascript_packages[(name, version)] = (
                 self.javascript_package.get_package()
             )
         # Record relationship
-        if parent != self.DEFAULT_PARENT:
-            if self.debug:
-                print(f"Add relationship {parent} DEPENDS ON {name}")
-            self.javascript_relationship.initialise()
-            self.javascript_relationship.set_relationship(parent, "DEPENDS_ON", name)
-            self.javascript_relationships.append(
-                self.javascript_relationship.get_relationship()
-            )
-        else:
-            if self.debug:
-                print(f"Add relationship {parent} DESCRIBES {name}")
-            self.javascript_relationship.initialise()
-            self.javascript_relationship.set_relationship(
-                self.application_name, "DESCRIBES", name
-            )
-            self.javascript_relationships.append(
-                self.javascript_relationship.get_relationship()
-            )
+        self._add_relationship(parent, name)
 
     def get_record(self):
         return self.record
