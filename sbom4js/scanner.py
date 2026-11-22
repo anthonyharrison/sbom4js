@@ -1,6 +1,7 @@
 # Copyright (C) 2024 Anthony Harrison
 # SPDX-License-Identifier: Apache-2.0
 
+import base64
 import json
 import os
 import re
@@ -55,7 +56,7 @@ class JavascriptScanner:
             # Load data from file
             with open(os.path.abspath(self.dependency_file), "r") as file_handle:
                 self.module_data = json.load(file_handle)
-            self.lock_file = self.dependency_file
+            self.lock_file = os.path.abspath(self.dependency_file)
             if self.debug:
                 print (json.dumps(self.module_data, indent=2))
         elif self.debug:
@@ -77,8 +78,11 @@ class JavascriptScanner:
                 # Cater for case when version field not present
                 version = "UNKNOWN"
             if version != "UNKNOWN":
+                checksum = None
+                if "integrity" in module[entry]:
+                    checksum = module[entry]['integrity']
                 self.packages.append([product, version])
-                self.add_entry(parent, product, version)
+                self.add_entry(parent, product, version, package_checksum=checksum)
             else:
                 if self.debug:
                     print(f"Version not found for {product}")
@@ -193,7 +197,7 @@ class JavascriptScanner:
             self.javascript_relationship.get_relationship()
         )
 
-    def add_entry(self, parent, name, version, package_type="LIBRARY"):
+    def add_entry(self, parent, name, version, package_type="LIBRARY", package_checksum=None):
         if self.debug:
             print(f"Add entry {parent} - {name} {version}")
         self.add(
@@ -279,6 +283,12 @@ class JavascriptScanner:
                 self.javascript_package.set_licensedeclared(self.DEFAULT_LICENCE)
             if checksum is not None:
                 self.javascript_package.set_checksum(checksum_algorithm, checksum)
+            if package_checksum is not None:
+                checksum_algorithm, checksum = package_checksum.split("-")
+                # Convert from base64 to ascii
+                raw_bytes = base64.b64decode(checksum, validate=True)
+                checksum_string = raw_bytes.hex()
+                self.javascript_package.set_checksum(checksum_algorithm.upper(), checksum_string)         
             if homepage is not None:
                 self.javascript_package.set_homepage(homepage)
             if download_location is not None:
